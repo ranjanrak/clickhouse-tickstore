@@ -82,6 +82,25 @@ Query id: 8e356516-107c-4012-948b-df90e49e9906
 84 rows in set. Elapsed: 0.006 sec. Processed 8.19 thousand rows, 98.30 KB (1.28 million rows/s., 15.37 MB/s.)
 ```
 
-### To-do
+### Fetch OHLC candle data for any given interval using [CTE](https://clickhouse.com/docs/en/sql-reference/statements/select/with/) and [aggregate function](https://clickhouse.com/docs/en/sql-reference/aggregate-functions/reference/grouparray/)
 
-Add multiple interval(minutes, hours, etc) candle formation query.
+```sql
+WITH price_select AS (SELECT price
+FROM tickdata
+FINAL
+WHERE (instrument_token = 975873) AND
+(timestamp >= toDateTime('2022-05-02 14:47:00')) AND
+(timestamp <= toDateTime('2022-05-02 14:47:59'))
+ORDER BY timestamp ASC)
+SELECT groupArray(price)[1] AS open,
+max(price) AS high,
+min(price) AS low,
+groupArray(price)[-1] AS close FROM price_select;
+```
+
+```sql
+Query id: 98d92c26-e054-4f0a-8448-064bc0d939a0
+┌───open─┬───high─┬───low─┬─close─┐
+│ 252.25 │ 252.35 │ 252.1 │ 252.2 │
+└────────┴────────┴───────┴───────┘
+```
