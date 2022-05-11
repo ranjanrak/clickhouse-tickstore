@@ -28,6 +28,7 @@ func main() {
         DumpSize:    5000,
 	})
     // Start the ticker instance
+    // Nothing will run after this
     tickClient.StartTicker()
 }
 
@@ -103,4 +104,51 @@ Query id: 98d92c26-e054-4f0a-8448-064bc0d939a0
 ┌───open─┬───high─┬───low─┬─close─┐
 │ 252.25 │ 252.35 │ 252.1 │ 252.2 │
 └────────┴────────┴───────┴───────┘
+```
+
+### Create base minute candle OHLC
+
+> Which will be used further to calculate other candle intervals(3Min, 5Min, 15Min, etc)
+
+```sql
+SELECT
+    instrument_token,
+    time_minute,
+    groupArray(price)[1] AS open,
+    max(price) AS high,
+    min(price) AS low,
+    groupArray(price)[-1] AS close
+FROM
+(
+    SELECT
+        instrument_token,
+        toStartOfMinute(timestamp) AS time_minute,
+        price
+    FROM tickdata
+    WHERE (instrument_token = 975873) AND
+    (timestamp >= toDateTime('2022-05-02 14:47:00')) AND
+    (timestamp <= toDateTime('2022-05-02 14:59:59'))
+)
+GROUP BY (instrument_token, time_minute)
+ORDER BY time_minute ASC
+```
+
+```sql
+Query id: 2ba74fd2-6047-42c9-9436-be8987a5d3a9
+
+┌─instrument_token─┬─────────time_minute─┬───open─┬───high─┬────low─┬──close─┐
+│           975873 │ 2022-05-02 14:47:00 │ 252.25 │ 252.35 │  252.1 │  252.2 │
+│           975873 │ 2022-05-02 14:48:00 │  252.2 │  252.3 │  251.9 │ 252.25 │
+│           975873 │ 2022-05-02 14:49:00 │  252.3 │  252.3 │ 252.05 │  252.1 │
+│           975873 │ 2022-05-02 14:50:00 │  252.1 │ 252.45 │ 252.05 │ 252.35 │
+│           975873 │ 2022-05-02 14:51:00 │  252.2 │ 252.45 │  252.2 │ 252.35 │
+│           975873 │ 2022-05-02 14:52:00 │ 252.35 │ 252.35 │    252 │    252 │
+│           975873 │ 2022-05-02 14:53:00 │    252 │ 253.15 │    252 │  252.8 │
+│           975873 │ 2022-05-02 14:54:00 │  252.8 │  253.2 │  252.7 │  252.8 │
+│           975873 │ 2022-05-02 14:55:00 │  252.8 │  253.4 │ 252.75 │  253.3 │
+│           975873 │ 2022-05-02 14:56:00 │ 253.25 │  253.4 │    253 │  253.1 │
+│           975873 │ 2022-05-02 14:57:00 │  253.1 │  253.1 │ 252.85 │ 252.85 │
+│           975873 │ 2022-05-02 14:58:00 │  252.8 │ 253.05 │  252.5 │  252.6 │
+│           975873 │ 2022-05-02 14:59:00 │  252.6 │  253.4 │  252.6 │  253.4 │
+└──────────────────┴─────────────────────┴────────┴────────┴────────┴────────┘
 ```
