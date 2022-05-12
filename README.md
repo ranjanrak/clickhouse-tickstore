@@ -152,3 +152,27 @@ Query id: 2ba74fd2-6047-42c9-9436-be8987a5d3a9
 │           975873 │ 2022-05-02 14:59:00 │  252.6 │  253.4 │  252.6 │  253.4 │
 └──────────────────┴─────────────────────┴────────┴────────┴────────┴────────┘
 ```
+
+### Create candle_data materialized views to store minute OHLC
+
+```sql
+CREATE MATERIALIZED VIEW candle_data
+ENGINE = ReplacingMergeTree
+ORDER BY (instrument_token, time_minute) POPULATE AS
+SELECT
+    instrument_token,
+    time_minute,
+    groupArray(price)[1] AS open,
+    max(price) AS high,
+    min(price) AS low,
+    groupArray(price)[-1] AS close
+FROM
+(
+    SELECT
+        instrument_token,
+        toStartOfMinute(timestamp) AS time_minute,
+        price
+    FROM tickdata
+)
+GROUP BY (instrument_token, time_minute)
+```
