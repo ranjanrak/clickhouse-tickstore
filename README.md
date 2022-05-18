@@ -30,8 +30,29 @@ func main() {
     // Start the ticker instance
     // Nothing will run after this
     tickClient.StartTicker()
+
+    // Fetch minute candle OHLC data
+    timeStart := time.Date(2022, 5, 11, 9, 51, 0, 0, time.Local)
+    timeEnd := time.Date(2022, 5, 11, 10, 02, 0, 0, time.Local)
+    candles, err := tickClient.FetchCandle(633601, timeStart, timeEnd)
+    if err != nil {
+        log.Fatalf("Error fetching candle data: %v", err)
+    }
+    fmt.Printf("%+v\n", candles)
 }
 
+```
+
+## Response
+
+> FetchCandle(633601, timeStart, timeEnd)
+
+```
+[{InstrumentToken:633601 TimeStamp:2022-05-11 09:51:00 +0530 IST Open:156.65 High:156.75 Low:156.45 Close:156.65}
+{InstrumentToken:633601 TimeStamp:2022-05-11 09:52:00 +0530 IST Open:156.75 High:156.95 Low:156.7 Close:156.75}
+{InstrumentToken:633601 TimeStamp:2022-05-11 09:53:00 +0530 IST Open:156.75 High:156.75 Low:156.2 Close:156.3}
+{InstrumentToken:633601 TimeStamp:2022-05-11 09:54:00 +0530 IST Open:156.3 High:156.3 Low:156 Close:156.1}
+......]
 ```
 
 ## Example
