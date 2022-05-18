@@ -55,7 +55,7 @@ func New(userParam ClientParam) *Client {
 		ORDER BY (timestamp, instrument_token, price)
 	`)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("Error creating tickdata table: %v", err)
 	}
 
 	return &Client{

@@ -158,7 +158,8 @@ Query id: 2ba74fd2-6047-42c9-9436-be8987a5d3a9
 ```sql
 CREATE MATERIALIZED VIEW candle_data
 ENGINE = ReplacingMergeTree
-ORDER BY (instrument_token, time_minute) POPULATE AS
+ORDER BY (instrument_token, time_minute)
+PRIMARY KEY (instrument_token, time_minute) POPULATE AS
 SELECT
     instrument_token,
     time_minute,

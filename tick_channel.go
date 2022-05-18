@@ -93,7 +93,10 @@ func createBulkDump() {
 		s = append(s, i)
 		if len(s) > dumpSize {
 			// Send message array for the bulk dump
-			insertDB(s)
+			err := InsertDB(s)
+			if err != nil {
+				log.Fatalf("Error inserting tick to DB: %v", err)
+			}
 			// Remove all the element from the array that is dumped to DB
 			s = nil
 		}
@@ -101,17 +104,17 @@ func createBulkDump() {
 }
 
 // Insert tick data to clickhouse periodically
-func insertDB(tickArray []tickData) {
+func InsertDB(tickArray []tickData) error {
 	tx, err := dbConnect.Begin()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	sqlstmt := "INSERT INTO tickdata (instrument_token, timestamp, price) VALUES (?, ?, ?)"
 
 	stmt, err := tx.Prepare(sqlstmt)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	// Bulk write
@@ -121,13 +124,14 @@ func insertDB(tickArray []tickData) {
 			tick.TimeStamp,
 			tick.LastPrice,
 		); err != nil {
-			log.Fatal(err)
+			return err
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
-		log.Fatal(err)
+		return err
 	}
+	return nil
 }
 
 // Start ticker stream
