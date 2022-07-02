@@ -54,11 +54,8 @@ func onConnect() {
 
 // Triggered when tick is received
 func onTick(tick kitemodels.Tick) {
-	wg.Add(1)
-	//go routine that adds tick to channel
-	go passChannel(tick, pipeline, &wg)
-	// non-blocking the onTick callback
-	wg.Wait()
+	// Send {instrument token, timestamp, lastprice} struct to channel
+	pipeline <- tickData{tick.InstrumentToken, tick.Timestamp.Time, tick.LastPrice}
 }
 
 // Triggered when reconnection is attempted which is enabled by default
@@ -71,21 +68,8 @@ func onNoReconnect(attempt int) {
 	fmt.Printf("Maximum no of reconnect attempt reached: %d", attempt)
 }
 
-// Insert tick data to channel
-func passChannel(tick kitemodels.Tick, pipeline chan tickData, wg *sync.WaitGroup) {
-	// Send {token, timestamp, lastprice} struct to channel
-	pipeline <- tickData{tick.InstrumentToken, tick.Timestamp.Time, tick.LastPrice}
-	wg.Done()
-	isBulkReady.Lock()
-	// Send for bulk insertion only if channel msg length is greater than defined dumpSize
-	if len(pipeline) >= dumpSize {
-		createBulkDump()
-	}
-	isBulkReady.Unlock()
-}
-
 // Group all available channel messages and bulk insert to clickhouse
-// At periodic interval depending on users input channel buffer size
+// Bulk insert is done at periodic interval depending on users input channel buffer size(dumpSize)
 func createBulkDump() {
 	s := make([]tickData, 0)
 	for i := range pipeline {
@@ -158,6 +142,10 @@ func (c *Client) StartTicker() {
 	ticker.OnReconnect(onReconnect)
 	ticker.OnNoReconnect(onNoReconnect)
 	ticker.OnTick(onTick)
+
+	// Go-routine that listens to pipeline channel forever
+	// And performs periodic bulk insert based on user-input dumpSize
+	go createBulkDump()
 
 	// Start the connection
 	ticker.Serve()
