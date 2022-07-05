@@ -4,8 +4,10 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go"
+	kiteticker "github.com/zerodha/gokiteconnect/v4/ticker"
 )
 
 // Client represents clickhouse DB client connection
@@ -15,6 +17,8 @@ type Client struct {
 	accessToken string
 	tokenList   []uint32
 	dumpSize    int
+	ticker      *kiteticker.Ticker
+	pipeline    chan tickData
 }
 
 // ClientParam represents interface to connect clickhouse and kite ticker stream
@@ -24,6 +28,13 @@ type ClientParam struct {
 	AccessToken string
 	TokenList   []uint32
 	DumpSize    int
+}
+
+// tickData is struct to store streaming tick data in clickhouse
+type tickData struct {
+	Token     uint32
+	TimeStamp time.Time
+	LastPrice float64
 }
 
 // Creates a new DB connection client
@@ -58,11 +69,19 @@ func New(userParam ClientParam) *Client {
 		log.Fatalf("Error creating tickdata table: %v", err)
 	}
 
+	// Create new Kite ticker instance
+	ticker := kiteticker.New(userParam.ApiKey, userParam.AccessToken)
+
+	// Channel to store all upcoming streams of ticks
+	pipeline := make(chan tickData, userParam.DumpSize)
+
 	return &Client{
 		dbClient:    connect,
 		apiKey:      userParam.ApiKey,
 		accessToken: userParam.AccessToken,
 		tokenList:   userParam.TokenList,
 		dumpSize:    userParam.DumpSize,
+		ticker:      ticker,
+		pipeline:    pipeline,
 	}
 }

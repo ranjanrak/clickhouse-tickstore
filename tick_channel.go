@@ -1,31 +1,12 @@
 package tickstore
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
-	"sync"
 	"time"
 
 	kitemodels "github.com/zerodha/gokiteconnect/v4/models"
 	kiteticker "github.com/zerodha/gokiteconnect/v4/ticker"
-)
-
-// tickData is struct to store streaming tick data in clickhouse
-type tickData struct {
-	Token     uint32
-	TimeStamp time.Time
-	LastPrice float64
-}
-
-var (
-	dbConnect   *sql.DB
-	ticker      *kiteticker.Ticker
-	wg          sync.WaitGroup
-	isBulkReady sync.Mutex
-	dumpSize    int
-	tokens      []uint32
-	pipeline    chan tickData
 )
 
 // Triggered when any error is raised
@@ -39,23 +20,23 @@ func onClose(code int, reason string) {
 }
 
 // Triggered when connection is established and ready to send and accept data
-func onConnect() {
+func (c *Client) onConnect() {
 	fmt.Println("Connected")
-	err := ticker.Subscribe(tokens)
+	err := c.ticker.Subscribe(c.tokenList)
 	if err != nil {
 		fmt.Println("err: ", err)
 	}
 	// Set subscription mode for given list of tokens
-	err = ticker.SetMode(kiteticker.ModeFull, tokens)
+	err = c.ticker.SetMode(kiteticker.ModeFull, c.tokenList)
 	if err != nil {
 		fmt.Println("err: ", err)
 	}
 }
 
 // Triggered when tick is received
-func onTick(tick kitemodels.Tick) {
+func (c *Client) onTick(tick kitemodels.Tick) {
 	// Send {instrument token, timestamp, lastprice} struct to channel
-	pipeline <- tickData{tick.InstrumentToken, tick.Timestamp.Time, tick.LastPrice}
+	c.pipeline <- tickData{tick.InstrumentToken, tick.Timestamp.Time, tick.LastPrice}
 }
 
 // Triggered when reconnection is attempted which is enabled by default
@@ -70,14 +51,14 @@ func onNoReconnect(attempt int) {
 
 // Group all available channel messages and bulk insert to clickhouse
 // Bulk insert is done at periodic interval depending on users input channel buffer size(dumpSize)
-func createBulkDump() {
+func (c *Client) createBulkDump() {
 	s := make([]tickData, 0)
-	for i := range pipeline {
+	for i := range c.pipeline {
 		// create array of ticks to do bulk insert
 		s = append(s, i)
-		if len(s) > dumpSize {
+		if len(s) > c.dumpSize {
 			// Send message array for the bulk dump
-			err := InsertDB(s)
+			err := c.InsertDB(s)
 			if err != nil {
 				log.Fatalf("Error inserting tick to DB: %v", err)
 			}
@@ -88,8 +69,8 @@ func createBulkDump() {
 }
 
 // Insert tick data to clickhouse periodically
-func InsertDB(tickArray []tickData) error {
-	tx, err := dbConnect.Begin()
+func (c *Client) InsertDB(tickArray []tickData) error {
+	tx, err := c.dbClient.Begin()
 	if err != nil {
 		return err
 	}
@@ -120,33 +101,19 @@ func InsertDB(tickArray []tickData) error {
 
 // Start ticker stream
 func (c *Client) StartTicker() {
-
-	dbConnect = c.dbClient
-
-	dumpSize = c.dumpSize
-
-	tokens = c.tokenList
-
-	// Channel to store all upcoming streams of ticks
-	pipeline = make(chan tickData, dumpSize)
-
-	// Create new Kite ticker instance
-	ticker = kiteticker.New(c.apiKey, c.accessToken)
-
-	ticker.SetReconnectMaxRetries(5)
-
+	c.ticker.SetReconnectMaxRetries(5)
 	// Assign callbacks
-	ticker.OnError(onError)
-	ticker.OnClose(onClose)
-	ticker.OnConnect(onConnect)
-	ticker.OnReconnect(onReconnect)
-	ticker.OnNoReconnect(onNoReconnect)
-	ticker.OnTick(onTick)
+	c.ticker.OnError(onError)
+	c.ticker.OnClose(onClose)
+	c.ticker.OnConnect(c.onConnect)
+	c.ticker.OnReconnect(onReconnect)
+	c.ticker.OnNoReconnect(onNoReconnect)
+	c.ticker.OnTick(c.onTick)
 
 	// Go-routine that listens to pipeline channel forever
 	// And performs periodic bulk insert based on user-input dumpSize
-	go createBulkDump()
+	go c.createBulkDump()
 
 	// Start the connection
-	ticker.Serve()
+	c.ticker.Serve()
 }

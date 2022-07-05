@@ -1,5 +1,8 @@
 # clickhouse-tickstore
 
+[![Run Tests](https://github.com/ranjanrak/clickhouse-tickstore/actions/workflows/go-test.yml/badge.svg)](https://github.com/ranjanrak/clickhouse-tickstore/actions/workflows/go-test.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/ranjanrak/clickhouse-tickstore.svg)](https://pkg.go.dev/github.com/ranjanrak/clickhouse-tickstore)
+
 Go package to store real time [streaming websocket data](https://kite.trade/docs/connect/v3/websocket/) in [clickhouse](https://clickhouse.tech/) using queuing and bulk insert based on go-routine and channels.
 
 ## Installation
