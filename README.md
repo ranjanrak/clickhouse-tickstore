@@ -132,8 +132,6 @@ Query id: 98d92c26-e054-4f0a-8448-064bc0d939a0
 
 ### Create base minute candle OHLC
 
-> Which will be used further to calculate other candle intervals(3Min, 5Min, 15Min, etc)
-
 ```sql
 SELECT
     instrument_token,
@@ -200,4 +198,24 @@ FROM
     FROM tickdata
 )
 GROUP BY (instrument_token, time_minute)
+```
+
+### Create n-minute candle OHLC
+
+```sql
+WITH w AS (
+    SELECT open, high, low, close,
+    time, intDiv(toUnixTimestamp(toDateTime('2022-05-10 14:59:00')) - toUnixTimestamp(time), 60*n(in minutes of interval)) as grp
+    FROM tickdata
+    WHERE (instrument_token = 975873) AND
+    (timestamp >= toDateTime('2022-05-02 14:47:00')) AND
+    (timestamp <= toDateTime('2022-05-10 14:59:00')) order by time asc
+)
+SELECT
+    first_value(time) as time, first_value(open) as open,
+    max(high) as high, min(low) as low,
+    last_value(close) as close
+FROM
+    w
+GROUP BY grp ORDER BY time asc;
 ```
