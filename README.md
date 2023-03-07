@@ -135,23 +135,16 @@ Query id: 98d92c26-e054-4f0a-8448-064bc0d939a0
 ```sql
 SELECT
     instrument_token,
-    time_minute,
-    groupArray(price)[1] AS open,
+    toStartOfMinute(timestamp) AS time_minute,
+    argMin(price, timestamp) AS open
     max(price) AS high,
     min(price) AS low,
-    groupArray(price)[-1] AS close
-FROM
-(
-    SELECT
-        instrument_token,
-        toStartOfMinute(timestamp) AS time_minute,
-        price
-    FROM tickdata
-    WHERE (instrument_token = 975873) AND
+    argMax(price, timestamp) AS close
+FROM tickdata
+WHERE (instrument_token = 975873) AND
     (timestamp >= toDateTime('2022-05-02 14:47:00')) AND
     (timestamp <= toDateTime('2022-05-02 14:59:59'))
-)
-GROUP BY (instrument_token, time_minute)
+GROUP BY instrument_token, time_minute
 ORDER BY time_minute ASC
 ```
 
@@ -178,26 +171,28 @@ Query id: 2ba74fd2-6047-42c9-9436-be8987a5d3a9
 ### Create candle_data materialized views to store minute OHLC
 
 ```sql
-CREATE MATERIALIZED VIEW candle_data
-ENGINE = ReplacingMergeTree
+CREATE TABLE candle_data (
+	instrument_token	UInt32,
+	time_minute 		DateTime,
+	open 			AggregateFunction(argMin,Float64, DateTime),
+	high 			SimpleAggregateFunction(max,Float64),
+	low   			SimpleAggregateFunction(min,Float64),
+	close			AggregateFunction(argMax,Float64, DateTime),
+)
+ENGINE = AggregatingMergeTree
+PARTITION BY toYYYYMM(time_minute)
 ORDER BY (instrument_token, time_minute)
-PRIMARY KEY (instrument_token, time_minute) POPULATE AS
+
+CREATE MATERIALIZED VIEW candle_data_stream TO candle_data AS
 SELECT
     instrument_token,
-    time_minute,
-    groupArray(price)[1] AS open,
+    toStartOfMinute(timestamp) AS time_minute,
+    argMinState(price, timestamp) AS open,
     max(price) AS high,
     min(price) AS low,
-    groupArray(price)[-1] AS close
-FROM
-(
-    SELECT
-        instrument_token,
-        toStartOfMinute(timestamp) AS time_minute,
-        price
-    FROM tickdata
-)
-GROUP BY (instrument_token, time_minute)
+    argMaxState(price, timestamp) AS close
+FROM tickdata
+GROUP BY instrument_token, time_minute
 ```
 
 ### Create n-minute candle OHLC
